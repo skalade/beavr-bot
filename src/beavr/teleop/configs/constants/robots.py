@@ -7,6 +7,7 @@ import os
 import numpy as np
 
 ROBOT_NAME_LEAP = "leap"
+ROBOT_NAME_XARM6 = "xarm6"
 ROBOT_NAME_XARM7 = "xarm7"
 
 # -----------------------------------------------------------------------------
@@ -92,6 +93,16 @@ ROBOT_HOME_JS = [
     0.0,
 ]
 
+# XArm6 home joint state (6 joints)
+XARM6_HOME_JS = [
+    0.0,
+    -0.4363323129985824,
+    -0.017453292519943295,
+    0.4537856055185257,
+    0.0,
+    0.8726646259971648,
+]
+
 # -----------------------------------------------------------------------------
 # LEAP hand solver scaling factors (used by LeapHandIKSolver)
 # -----------------------------------------------------------------------------
@@ -147,6 +158,8 @@ VISUALIZE_RIGHT_DIR = False
 # -----------------------------------------------------------------------------
 # Robot identifiers for recording
 # -----------------------------------------------------------------------------
+ROBOT_IDENTIFIER_RIGHT_XARM6 = "right_xarm6"
+ROBOT_IDENTIFIER_LEFT_XARM6 = "left_xarm6"
 ROBOT_IDENTIFIER_RIGHT_XARM7 = "right_xarm7"
 ROBOT_IDENTIFIER_LEFT_XARM7 = "left_xarm7"
 ROBOT_IDENTIFIER_RIGHT_LEAP_HAND = "right_leap"
