@@ -222,7 +222,7 @@ class CompositeRobotConfig:
         }
 
 
-def load_robot_config(robot_name: str, laterality: Laterality) -> Any:
+def load_robot_config(robot_name: str, laterality: Laterality, simulation_mode: bool = False) -> Any:
     """
     Load robot configuration(s) based on robot name(s) and laterality.
 
@@ -231,6 +231,7 @@ def load_robot_config(robot_name: str, laterality: Laterality) -> Any:
     Args:
         robot_name: Single robot name or comma-separated list (e.g., "leap,xarm7")
         laterality: Laterality enum for robot configuration
+        simulation_mode: Whether to run in simulation mode (no hardware connection)
 
     Returns:
         Single robot config or CompositeRobotConfig for multiple robots
@@ -244,13 +245,13 @@ def load_robot_config(robot_name: str, laterality: Laterality) -> Any:
 
     if len(robot_names) == 1:
         # Single robot - use existing logic
-        return _load_single_robot(robot_names[0], laterality)
+        return _load_single_robot(robot_names[0], laterality, simulation_mode=simulation_mode)
     else:
         # Multiple robots - create composite config
-        return _load_multiple_robots(robot_names, laterality)
+        return _load_multiple_robots(robot_names, laterality, simulation_mode=simulation_mode)
 
 
-def _load_single_robot(robot_name: str, laterality: Laterality) -> Any:
+def _load_single_robot(robot_name: str, laterality: Laterality, simulation_mode: bool = False) -> Any:
     """Load configuration for a single robot."""
     logger.info(f"📦 Loading single robot config: {robot_name}")
 
@@ -269,6 +270,8 @@ def _load_single_robot(robot_name: str, laterality: Laterality) -> Any:
     cfg_kwargs = {}
     if "laterality" in getattr(cfg_cls, "__dataclass_fields__", {}):
         cfg_kwargs["laterality"] = laterality
+    if "simulation_mode" in getattr(cfg_cls, "__dataclass_fields__", {}):
+        cfg_kwargs["simulation_mode"] = simulation_mode
 
     robot_config = cfg_cls(**cfg_kwargs)
 
@@ -276,7 +279,9 @@ def _load_single_robot(robot_name: str, laterality: Laterality) -> Any:
     return robot_config
 
 
-def _load_multiple_robots(robot_names: List[str], laterality: Laterality) -> CompositeRobotConfig:
+def _load_multiple_robots(
+    robot_names: List[str], laterality: Laterality, simulation_mode: bool = False
+) -> CompositeRobotConfig:
     """Load and combine configurations for multiple robots."""
     logger.info(f"📦 Loading composite robot config: {','.join(robot_names)}")
 
@@ -284,7 +289,7 @@ def _load_multiple_robots(robot_names: List[str], laterality: Laterality) -> Com
 
     for robot_name in robot_names:
         # Load individual robot config
-        robot_config = _load_single_robot(robot_name, laterality)
+        robot_config = _load_single_robot(robot_name, laterality, simulation_mode=simulation_mode)
         individual_configs.append(robot_config)
         logger.info(f"  ✅ Loaded {robot_name} config with laterality: {laterality.value}")
 

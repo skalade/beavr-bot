@@ -40,6 +40,7 @@ class XArm6Robot(RobotWrapper):
         is_right_arm=True,
         endeff_publish_port: int = 10040,
         state_publish_port: int = 10046,
+        simulation_mode: bool = False,
         **kwargs,
     ):
         if not endeff_publish_port:
@@ -47,7 +48,11 @@ class XArm6Robot(RobotWrapper):
         if not state_publish_port:
             raise ValueError("XArm6Robot requires a 'state_publish_port'")
 
-        self._controller = DexArmControl(ip=robot_ip)
+        if simulation_mode:
+            logger.info("XArm6Robot: simulation mode enabled - skipping hardware initialization")
+            self._controller = None
+        else:
+            self._controller = DexArmControl(ip=robot_ip)
         self._is_right_arm = is_right_arm
         self._data_frequency = robots.VR_FREQ
 
@@ -141,6 +146,8 @@ class XArm6Robot(RobotWrapper):
         return self._data_frequency
 
     def get_joint_state(self):
+        if self._controller is None:
+            return None
         arm_states = self._controller.get_arm_states()
         if arm_states is None or arm_states.get("joint_position") is None:
             return None
@@ -150,39 +157,59 @@ class XArm6Robot(RobotWrapper):
         }
 
     def get_joint_velocity(self):
+        if self._controller is None:
+            return None
         return self._controller.get_arm_velocity()
 
     def get_joint_torque(self):
+        if self._controller is None:
+            return None
         return self._controller.get_arm_torque()
 
     def get_cartesian_state(self):
+        if self._controller is None:
+            return None
         return self._controller.get_cartesian_state()
 
     def get_joint_position(self):
+        if self._controller is None:
+            return None
         arm_position = self._controller.get_arm_position()
         if arm_position is None:
             return None
         return list(np.array(arm_position, dtype=np.float32))
 
     def get_cartesian_position(self):
+        if self._controller is None:
+            return None
         return self._controller.get_arm_cartesian_coords()
 
     def reset(self):
+        if self._controller is None:
+            return None
         return self._controller._init_xarm_control()
 
     def get_teleop_state(self):
         return self._arm_teleop_state_subscriber.get_arm_teleop_state()
 
     def get_pose(self):
+        if self._controller is None:
+            return None
         return self._controller.get_arm_pose()
 
     def home(self):
+        if self._controller is None:
+            return None
         return self._controller.home_arm()
 
     def move(self, input_angles):
+        if self._controller is None:
+            return
         self._controller.move_arm_joint(input_angles)
 
     def move_coords(self, cartesian_coords, duration=3):
+        if self._controller is None:
+            return
         self._controller.move_arm_cartesian(cartesian_coords, duration=duration)
 
     def get_cartesian_state_from_operator(self):
@@ -203,10 +230,25 @@ class XArm6Robot(RobotWrapper):
 
     def get_robot_actual_cartesian_position(self):
         cartesian_state = self.get_cartesian_position()
+        if cartesian_state is None:
+            return None
         position = tuple(np.asarray(cartesian_state, dtype=np.float32).tolist())
         return CartesianState(position_m=position, timestamp_s=time.time())
 
     def send_robot_pose(self):
+        if self._controller is None:
+            # In sim mode publish an identity pose so the operator's reset handshake completes
+            h_matrix = tuple(tuple(float(x) for x in row) for row in np.eye(4))
+            self._publisher_manager.publish(
+                host=self._publisher_host,
+                port=self._endeff_publish_port,
+                topic="endeff_homo",
+                data=CartesianState(
+                    timestamp_s=time.time(),
+                    h_matrix=h_matrix,
+                ),
+            )
+            return
         pose_homo = self._controller.get_arm_pose()
         try:
             h_matrix = tuple(tuple(float(x) for x in row) for row in pose_homo)
@@ -240,14 +282,19 @@ class XArm6Robot(RobotWrapper):
             # Convert normalized width (0.0-0.085m) to SDK units (0-850)
             gripper_pos = int(np.clip(msg.width_m / 0.085 * 850, 0, 850))
             self._latest_gripper_position = gripper_pos
-            self._controller.set_gripper(gripper_pos)
+            if self._controller is not None:
+                self._controller.set_gripper(gripper_pos)
 
     def stream(self):
         self.home()
-        assert self._controller.robot.set_mode_and_state(1, 0), "Failed to enter SERVO-READY"
+        if self._controller is not None:
+            assert self._controller.robot.set_mode_and_state(1, 0), "Failed to enter SERVO-READY"
 
         target_interval = 1.0 / self._data_frequency
         next_frame_time = time.time()
+        _sim_log_interval = 5.0  # seconds between sim-mode status logs
+        _sim_last_log = time.time()
+        _sim_cmd_count = 0
 
         while True:
             current_time = time.time()
@@ -277,6 +324,7 @@ class XArm6Robot(RobotWrapper):
                         ]
                     )
                     self._latest_commanded_cartesian_timestamp = msg.timestamp_s
+                    _sim_cmd_count += 1
 
                 if self._latest_commanded_cartesian_position is not None:
                     self.move_coords(self._latest_commanded_cartesian_position)
@@ -285,6 +333,20 @@ class XArm6Robot(RobotWrapper):
                 self._process_gripper()
 
                 self.publish_current_state()
+
+                # Sim-mode: periodic status log so the user can see data is flowing
+                if self._controller is None and current_time - _sim_last_log >= _sim_log_interval:
+                    pos = self._latest_commanded_cartesian_position
+                    if pos is not None:
+                        logger.info(
+                            f"[sim] {self.name} received {_sim_cmd_count} cmds in last {_sim_log_interval:.0f}s | "
+                            f"pos=({pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}) "
+                            f"quat=({pos[3]:.3f}, {pos[4]:.3f}, {pos[5]:.3f}, {pos[6]:.3f})"
+                        )
+                    else:
+                        logger.info(f"[sim] {self.name}: waiting for operator commands...")
+                    _sim_last_log = current_time
+                    _sim_cmd_count = 0
 
                 sleep_time = max(0, next_frame_time - time.time())
                 if sleep_time > 0:

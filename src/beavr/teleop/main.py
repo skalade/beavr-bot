@@ -60,7 +60,9 @@ class MainConfig:
         self.laterality_enum = Laterality(self.laterality)
 
         # Load robot configuration(s) using utility
-        self.robot = load_robot_config(self.robot_name, self.laterality_enum)
+        self.robot = load_robot_config(
+            self.robot_name, self.laterality_enum, simulation_mode=self.teleop.flags.sim_env
+        )
 
     # TODO: Remove this once we have a complete migration to the new structured config
     # Convenience attribute delegation for backward compatibility

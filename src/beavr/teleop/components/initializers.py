@@ -83,7 +83,7 @@ class TeleOperator(ProcessInstantiator):
 
     # Function to start the sim environment
     def _init_sim_environment(self):
-        for env_config in self.robot_config.environment:
+        for env_config in getattr(self.robot_config, "environment", []):
             self.processes.append(Process(target=self._start_component, args=(env_config,)))
 
     # Function to start the keypoint transform

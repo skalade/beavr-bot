@@ -29,6 +29,7 @@ class XArm6RobotCfg:
     teleoperation_state_port: int = ports.XARM6_TELEOPERATION_STATE_PORT
     gripper_subscribe_port: int = ports.XARM6_GRIPPER_PORT
     hand_side: str = robots.RIGHT
+    simulation_mode: bool = False
     recorder_config: dict[str, Any] = field(
         default_factory=lambda: {
             "robot_identifier": robots.ROBOT_IDENTIFIER_RIGHT_XARM6,
@@ -54,6 +55,7 @@ class XArm6RobotCfg:
             home_subscribe_port=self.home_subscribe_port,
             teleoperation_state_port=self.teleoperation_state_port,
             gripper_subscribe_port=self.gripper_subscribe_port,
+            simulation_mode=self.simulation_mode,
         )
 
 
@@ -111,6 +113,7 @@ class XArm6OperatorCfg:
 class XArm6Config:
     robot_name: str = robots.ROBOT_NAME_XARM6
     laterality: Laterality = Laterality.RIGHT
+    simulation_mode: bool = False
 
     detector: list = field(default_factory=list)
     transforms: list = field(default_factory=list)
@@ -155,6 +158,7 @@ class XArm6Config:
                 teleoperation_state_port=ports.XARM6_TELEOPERATION_STATE_PORT,
                 gripper_subscribe_port=ports.XARM6_GRIPPER_PORT,
                 hand_side=robots.RIGHT,
+                simulation_mode=self.simulation_mode,
                 recorder_config={
                     "robot_identifier": robots.ROBOT_IDENTIFIER_RIGHT_XARM6,
                     "recorded_data": [

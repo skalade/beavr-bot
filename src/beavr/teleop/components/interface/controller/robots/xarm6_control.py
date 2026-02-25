@@ -176,8 +176,8 @@ class Robot(XArmAPI):
 class DexArmControl:
     """Controller for XArm6 with gripper."""
 
-    def __init__(self, ip="192.168.1.197"):
-        self.robot = Robot(ip, is_radian=True, simulation_mode=False)
+    def __init__(self, ip="192.168.1.197", simulation_mode=False):
+        self.robot = Robot(ip, is_radian=True, simulation_mode=simulation_mode)
         self.robot.set_tcp_maxacc(50)
         self.robot.set_joint_maxacc(10)
         self.robot.set_tcp_jerk(100)
