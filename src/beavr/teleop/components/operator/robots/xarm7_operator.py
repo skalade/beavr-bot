@@ -152,7 +152,7 @@ class XArmOperator(Operator):
 
         # State initialization
         self.arm_teleop_state = robots.ARM_TELEOP_CONT
-        self.resolution_scale = 1.0
+        self.resolution_scale = 0.5  # conservative default for cramped spaces; bump up once motion looks right
         self.is_first_frame = True
         self._timer = FrequencyTimer(robots.VR_FREQ)
         self._robot = None  # Placeholder for potential robot interface object

@@ -4,11 +4,11 @@
 
 # Host addresses
 # NOTE: Keep this in sync with your active environment config (e.g. configs/environment/dev.yaml)
-HOST_ADDRESS = "10.109.215.114"
+HOST_ADDRESS = "10.246.12.114"
 
 # Robot IP addresses
 LEFT_XARM_IP = "192.168.1.237"
-RIGHT_XARM_IP = "192.168.1.197"
+RIGHT_XARM_IP = "192.168.1.231"
 LEFT_ARM_IP = "192.168.86.216"  # For Left XArm
 RIGHT_ARM_IP = "192.168.86.230"  # For Right XArm
 

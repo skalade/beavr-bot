@@ -799,7 +799,7 @@ class LeapOnlyAdapterConfig(BeavrBotConfig):
             {
                 "name": f"{robots.ROBOT_NAME_LEAP}_right",
                 "host": network.HOST_ADDRESS,
-                "state_port": ports.LEAP_STATE_PUBLISH_PORT,
+                "state_port": ports.LEAP_STATE_PUBLISH_PORT_RIGHT,
                 "state_topic": f"{robots.ROBOT_NAME_LEAP}_right",
                 "robot_type": "hand",
                 "observation_key": "hand_state",
@@ -812,5 +812,49 @@ class LeapOnlyAdapterConfig(BeavrBotConfig):
                 "command_topic": "joint_angles",
                 "home_subscribe_port": ports.LEAP_HOME_SUBSCRIBE_PORT,
                 "teleop_port": ports.XARM_TELEOPERATION_STATE_PORT,
+            }
+        ]
+
+
+@RobotConfig.register_subclass("xarm6_only_adapter")
+@dataclass
+class XArm6OnlyAdapterConfig(BeavrBotConfig):
+    """XArm6 arm only configuration for recording with webcams."""
+
+    robot_type: str = "xarm6_only"
+
+    # Override cameras with sensible webcam defaults (adjust indices to match your setup)
+    cameras: dict[str, CameraConfig] = field(
+        default_factory=lambda: {
+            "overhead": OpenCVCameraConfig(
+                camera_index=2,
+                fps=30,
+                width=640,
+                height=480,
+            ),
+        }
+    )
+
+    def __post_init__(self):
+        """Configure for XArm6 only."""
+        self.robot_configs = [
+            {
+                "name": f"{robots.ROBOT_NAME_XARM6}_right",
+                "host": network.HOST_ADDRESS,
+                "state_port": ports.XARM6_STATE_PUBLISH_PORT,
+                "state_topic": f"{robots.ROBOT_NAME_XARM6}_right",
+                "robot_type": "arm",
+                "observation_key": "arm_state",
+                "action_key": "arm_action",
+                "joint_count": 6,
+                "joint_state_path": ["joint_states", "joint_position"],
+                "command_state_path": [
+                    "commanded_cartesian_state",
+                    "commanded_cartesian_position",
+                ],
+                "endeff_publish_port": ports.XARM6_ENDEFF_SUBSCRIBE_PORT,
+                "command_topic": "endeff_coords",
+                "home_subscribe_port": ports.XARM6_HOME_SUBSCRIBE_PORT,
+                "teleop_port": ports.XARM6_TELEOPERATION_STATE_PORT,
             }
         ]
