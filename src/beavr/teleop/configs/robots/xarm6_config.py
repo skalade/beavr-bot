@@ -74,7 +74,7 @@ class XArm6OperatorCfg:
     endeff_subscribe_port: int = ports.XARM6_ENDEFF_PUBLISH_PORT
     moving_average_limit: int = 3
     arm_resolution_port: int = ports.KEYPOINT_STREAM_PORT
-    use_filter: bool = False
+    use_filter: bool = True
     teleoperation_state_port: int = ports.XARM6_TELEOPERATION_STATE_PORT
     gripper_publish_port: int = ports.XARM6_GRIPPER_PORT
     logging_config: dict[str, Any] = field(
@@ -184,7 +184,7 @@ class XArm6Config:
                 endeff_subscribe_port=ports.XARM6_ENDEFF_PUBLISH_PORT,
                 moving_average_limit=3,
                 arm_resolution_port=ports.KEYPOINT_STREAM_PORT,
-                use_filter=False,
+                use_filter=True,
                 teleoperation_state_port=ports.XARM6_TELEOPERATION_STATE_PORT,
                 gripper_publish_port=ports.XARM6_GRIPPER_PORT,
                 hand_side=robots.RIGHT,

@@ -29,6 +29,34 @@ class Robot(XArmAPI):
         self._command_interval = 1.0 / robots.VR_FREQ
         self._last_position = None
 
+        # Pre-flight IK reject stats (rate-limited logging).
+        self._ik_reject_count = 0
+        self._ik_last_log_time = 0.0
+        self._ik_log_interval_s = 2.0
+
+    def _check_ik_reachable(self, pose_mm: np.ndarray) -> bool:
+        """Pre-flight: ask the firmware to solve IK for ``pose_mm`` before sending it.
+
+        ``pose_mm`` is the same 6-vector consumed by ``set_servo_cartesian_aa``:
+        ``[x_mm, y_mm, z_mm, rx, ry, rz]`` where ``(rx, ry, rz)`` is an
+        axis-angle (rotation vector) in radians. The xArm SDK's
+        ``get_inverse_kinematics`` expects RPY, so we convert first.
+
+        Returns ``True`` if the firmware reports a solution exists, ``False``
+        otherwise. On any unexpected error we return ``True`` so we don't
+        silently break teleop on an SDK API mismatch.
+        """
+        try:
+            pos = pose_mm[:3]
+            aa = pose_mm[3:]
+            rpy = Rotation.from_rotvec(aa).as_euler("xyz", degrees=False)
+            pose_rpy = np.concatenate([pos, rpy]).tolist()
+            code, _joints = self.get_inverse_kinematics(pose_rpy, input_is_radian=True)
+            return code == 0
+        except Exception as e:
+            print(f"IK pre-check raised, allowing pose through: {e}")
+            return True
+
     def clear(self):
         self.clean_error()
         self.clean_warn()
@@ -125,6 +153,17 @@ class Robot(XArmAPI):
             pose_mm = np.zeros(6, dtype=np.float32)
             pose_mm[0:3] = pos_m * robots.XARM_SCALE_FACTOR
             pose_mm[3:6] = aa
+
+            if not self._check_ik_reachable(pose_mm):
+                self._ik_reject_count += 1
+                if current_time - self._ik_last_log_time >= self._ik_log_interval_s:
+                    print(
+                        f"IK pre-check rejected {self._ik_reject_count} pose(s) "
+                        f"in last {self._ik_log_interval_s:.1f}s; latest skipped."
+                    )
+                    self._ik_last_log_time = current_time
+                    self._ik_reject_count = 0
+                return -1
 
             if self.mode != 1 or (self.state != 1 and self.state != 2):
                 print(f"Robot not in correct mode/state. Current: Mode={self.mode}, State={self.state}")
