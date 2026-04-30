@@ -862,5 +862,9 @@ class XArm6OnlyAdapterConfig(BeavrBotConfig):
                 "command_topic": "endeff_coords",
                 "home_subscribe_port": ports.XARM6_HOME_SUBSCRIBE_PORT,
                 "teleop_port": ports.XARM6_TELEOPERATION_STATE_PORT,
+                "has_gripper": True,
+                "gripper_state_path": ["gripper_width_m"],
+                "gripper_publish_port": ports.GRIPPER_PUBLISH_PORT_RIGHT,
+                "gripper_topic": "gripper",
             }
         ]

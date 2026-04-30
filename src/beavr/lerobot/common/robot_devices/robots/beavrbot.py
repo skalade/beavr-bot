@@ -18,6 +18,7 @@ from beavr.teleop.common.network.handshake import (
 )
 from beavr.teleop.common.network.publisher import ZMQPublisherManager
 from beavr.teleop.common.network.subscriber import ZMQSubscriber
+from beavr.teleop.components.operator.operator_types import GripperCommand
 from beavr.teleop.configs.constants import robots
 
 
@@ -142,6 +143,26 @@ class BeavrBot(Robot):
                 "robot_type": r_type,
             }
 
+        # Gripper publishers for arms that expose a parallel gripper.
+        self.gripper_publishers: dict[str, dict] = {}
+        for cfg in robot_configs:
+            if not cfg.get("has_gripper"):
+                continue
+            grip_port = cfg.get("gripper_publish_port")
+            if grip_port is None:
+                logging.warning(
+                    "Robot '%s' has has_gripper=True but no gripper_publish_port – gripper actions will not be replayed.",
+                    cfg["name"],
+                )
+                continue
+            self.gripper_publishers[cfg["name"]] = {
+                "host": cfg["host"],
+                "port": grip_port,
+                "topic": cfg.get("gripper_topic", "gripper"),
+                "hand_side": "left" if cfg["name"].endswith("_left") else "right",
+            }
+            self.pub_manager.get_publisher_thread(cfg["host"], grip_port)
+
         # Tele-operation control channel (pause/resume)
         self.op_state_publish_info = {
             "host": cfg["host"],
@@ -185,14 +206,25 @@ class BeavrBot(Robot):
         hand_configs = [c for c in self.robot_configs if c["robot_type"] == "hand"]
         sorted_configs = arm_configs + hand_configs
 
+        def _arm_action_dim(c):
+            return 8 if c.get("has_gripper") else 7
+
+        def _obs_dim(c):
+            return c["joint_count"] + (1 if c.get("has_gripper") else 0)
+
         # Calculate total dimensions
-        total_obs_dim = sum(c["joint_count"] for c in sorted_configs)
-        total_action_dim = sum(7 if c["robot_type"] == "arm" else c["joint_count"] for c in sorted_configs)
+        total_obs_dim = sum(_obs_dim(c) for c in sorted_configs)
+        total_action_dim = sum(
+            _arm_action_dim(c) if c["robot_type"] == "arm" else c["joint_count"]
+            for c in sorted_configs
+        )
 
         # Build combined observation feature
         obs_names = []
         for config in sorted_configs:
             obs_names.extend([f"{config['name']}_joint_{i}" for i in range(config["joint_count"])])
+            if config.get("has_gripper"):
+                obs_names.append(f"{config['name']}_gripper_width")
 
         features["observation.state"] = {
             "shape": (total_obs_dim,),
@@ -207,6 +239,8 @@ class BeavrBot(Robot):
                 action_names.extend(
                     [f"{config['name']}_{dim}" for dim in ["x", "y", "z", "qx", "qy", "qz", "qw"]]
                 )
+                if config.get("has_gripper"):
+                    action_names.append(f"{config['name']}_gripper_width")
             else:
                 action_names.extend([f"{config['name']}_cmd_{i}" for i in range(config["joint_count"])])
 
@@ -368,6 +402,9 @@ class BeavrBot(Robot):
                         joint_data = joint_data.reshape(1)
 
                     combined_state.extend(joint_data)
+                    if config.get("has_gripper"):
+                        grip = self._get_nested_value(robot_data, config["gripper_state_path"])
+                        combined_state.append(float(grip) if grip is not None else 0.0)
                     continue  # processed this robot
             # If we reach here we did not manage to append any data for this robot.
             missing_robots.append(name)
@@ -376,6 +413,8 @@ class BeavrBot(Robot):
                 combined_state.extend(np.array(robots.ROBOT_HOME_JS, dtype=np.float32))
             elif config["robot_type"] == "hand":
                 combined_state.extend(np.array(robots.LEAP_HOME_JS, dtype=np.float32))
+            if config.get("has_gripper"):
+                combined_state.append(0.0)
 
         # Attach error flags if any
         if missing_robots:
@@ -414,12 +453,12 @@ class BeavrBot(Robot):
         for config in self._sorted_configs:
             name = config["name"]
             command_cache = self.robot_command_caches.get(name)
+            robot_data = self.robot_state_caches.get(name)
 
             if command_cache is not None:
                 combined_action.extend(command_cache)
             else:
                 # If no command cache, use current state as action
-                robot_data = self.robot_state_caches.get(name)
                 if robot_data is not None:
                     joint_data = self._get_nested_value(robot_data, config["joint_state_path"])
                     if joint_data is not None:
@@ -428,6 +467,14 @@ class BeavrBot(Robot):
                         if joint_data.ndim == 0:
                             joint_data = joint_data.reshape(1)
                         combined_action.extend(joint_data)
+
+            if config.get("has_gripper"):
+                grip = (
+                    self._get_nested_value(robot_data, config["gripper_state_path"])
+                    if robot_data is not None
+                    else None
+                )
+                combined_action.append(float(grip) if grip is not None else 0.0)
 
         action_dict = {"action": np.asarray(combined_action, dtype=np.float32)} if combined_action else None
 
@@ -558,7 +605,11 @@ class BeavrBot(Robot):
         for cfg in self._sorted_configs:
             name = cfg["name"]
             r_type = cfg["robot_type"]
-            dim = 7 if r_type == "arm" else cfg["joint_count"]
+            has_grip = bool(cfg.get("has_gripper"))
+            if r_type == "arm":
+                dim = 8 if has_grip else 7
+            else:
+                dim = cfg["joint_count"]
 
             segment = action_np[cursor : cursor + dim]
             cursor += dim
@@ -595,6 +646,18 @@ class BeavrBot(Robot):
 
             # Submit non-blocking publish via manager --------------------
             self._publish_pool.submit(self._publish_async, pub_info, payload)
+
+            # Gripper: publish the trailing scalar as a GripperCommand.
+            if r_type == "arm" and has_grip:
+                grip_pub = self.gripper_publishers.get(name)
+                if grip_pub is not None:
+                    grip_cmd = GripperCommand(
+                        timestamp_s=time.time(),
+                        hand_side=grip_pub["hand_side"],
+                        width_m=float(segment_np[7]),
+                    )
+                    self._publish_pool.submit(self._publish_async, grip_pub, grip_cmd)
+
             sent_segments.append(segment_np)
 
         # Concatenate the segments back into a single tensor for return

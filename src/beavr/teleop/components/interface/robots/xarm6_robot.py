@@ -114,7 +114,8 @@ class XArm6Robot(RobotWrapper):
         self._is_recording_enabled = False
         self._latest_commanded_cartesian_position = None
         self._latest_commanded_cartesian_timestamp = 0.0
-        self._latest_gripper_position = 850  # Start open
+        self._latest_gripper_position = 850  # Start open (SDK units 0-850)
+        self._latest_gripper_width_m = 0.085  # Continuous metres mirror
 
         self._handshake_coordinator = HandshakeCoordinator.get_instance()
         self._handshake_server_id = f"{self.name}_handshake"
@@ -279,8 +280,10 @@ class XArm6Robot(RobotWrapper):
     def _process_gripper(self):
         msg = self._gripper_subscriber.recv_keypoints()
         if msg is not None:
+            width_m = float(np.clip(msg.width_m, 0.0, 0.085))
+            self._latest_gripper_width_m = width_m
             # Convert normalized width (0.0-0.085m) to SDK units (0-850)
-            gripper_pos = int(np.clip(msg.width_m / 0.085 * 850, 0, 850))
+            gripper_pos = int(np.clip(width_m / 0.085 * 850, 0, 850))
             self._latest_gripper_position = gripper_pos
             if self._controller is not None:
                 self._controller.set_gripper(gripper_pos)
@@ -373,6 +376,7 @@ class XArm6Robot(RobotWrapper):
             current_state_dict["joint_angles_rad"] = joint_angles_rad
 
         current_state_dict["gripper_position"] = self._latest_gripper_position
+        current_state_dict["gripper_width_m"] = self._latest_gripper_width_m
         current_state_dict["timestamp"] = publish_time
 
         self._publisher_manager.publish(
