@@ -826,8 +826,14 @@ class XArm6OnlyAdapterConfig(BeavrBotConfig):
     # Override cameras with sensible webcam defaults (adjust indices to match your setup)
     cameras: dict[str, CameraConfig] = field(
         default_factory=lambda: {
-            "overhead": OpenCVCameraConfig(
-                camera_index=2,
+            "wrist": OpenCVCameraConfig(
+                camera_index=4,
+                fps=30,
+                width=640,
+                height=480,
+            ),
+            "side": OpenCVCameraConfig(
+                camera_index=6,
                 fps=30,
                 width=640,
                 height=480,
