@@ -167,6 +167,11 @@ class Robot(XArmAPI):
 
             if self.mode != 1 or (self.state != 1 and self.state != 2):
                 print(f"Robot not in correct mode/state. Current: Mode={self.mode}, State={self.state}")
+                # Firmware refuses mode changes while an error is latched
+                # (e.g. error 19 from a too-fast servo step), so clear first.
+                self.clean_error()
+                self.clean_warn()
+                self.motion_enable(enable=True)
                 self.set_mode_and_state(1, 0)
                 time.sleep(0.2)
 
