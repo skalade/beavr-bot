@@ -4,7 +4,7 @@
 
 # Host addresses
 # NOTE: Keep this in sync with your active environment config (e.g. configs/environment/dev.yaml)
-HOST_ADDRESS = "10.246.12.114"
+HOST_ADDRESS = "10.114.156.114"
 
 # Robot IP addresses
 LEFT_XARM_IP = "192.168.1.237"
@@ -18,7 +18,7 @@ RIGHT_LEAP_USB_PORT = "/dev/ttyUSB0"
 
 # Robot IP addresses (alternative naming)
 XARM_LEFT_IP = "192.168.1.237"
-XARM_RIGHT_IP = "192.168.1.197"
+XARM_RIGHT_IP = "192.168.1.231"
 
 # Network configuration
 TELEOP_HANDSHAKE_PORT = 8150
